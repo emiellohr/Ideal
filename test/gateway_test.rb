@@ -1,6 +1,7 @@
 # encoding: utf-8
 
 require File.expand_path('../helper', __FILE__)
+require 'mocha'
 
 module IdealTestCases
   # This method is called at the end of the file when all fixture data has been loaded.
@@ -34,7 +35,7 @@ module IdealTestCases
 
     def test_verify_live_url_for_ing
       Ideal::Gateway.acquirer = :ing
-      assert_equal 'https://ideal.secure-ing.com/ideal/iDeal', Ideal::Gateway.live_url
+      assert_equal 'https://ideal.secure-ing.com/ideal/iDEALv3', Ideal::Gateway.live_url
     end
 
     def test_verify_live_url_for_rabobank
@@ -55,7 +56,7 @@ module IdealTestCases
 
     def test_acquirers
       assert_equal 'https://ideal.rabobank.nl/ideal/iDEALv3', Ideal::Gateway.acquirers['rabobank']['live_url']
-      assert_equal 'https://ideal.secure-ing.com/ideal/iDeal', Ideal::Gateway.acquirers['ing']['live_url']
+      assert_equal 'https://ideal.secure-ing.com/ideal/iDEALv3', Ideal::Gateway.acquirers['ing']['live_url']
       assert_equal 'https://abnamro.ideal-payment.de/ideal/iDeal', Ideal::Gateway.acquirers['abnamro']['live_url']
     end
 

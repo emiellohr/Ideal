@@ -1,0 +1,14 @@
+Run options: 
+
+# Running tests:
+
+.F
+
+Finished tests in 0.945505s, 2.1153 tests/s, 2.1153 assertions/s.
+
+  1) Failure:
+test_retrieval_of_issuers(IdealTest) [test/remote_test.rb:66]:
+<1> expected but was
+<0>.
+
+2 tests, 2 assertions, 1 failures, 0 errors, 0 skips

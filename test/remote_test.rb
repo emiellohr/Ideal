@@ -22,35 +22,35 @@ class IdealTest < Test::Unit::TestCase
     }
   end
 
-  def test_making_test_requests
-    assert @gateway.issuers.test?
-  end
+  # def test_making_test_requests
+  #   assert @gateway.issuers.test?
+  # end
 
-  def test_setup_purchase_with_valid_options
-    response = @gateway.setup_purchase(550, @valid_options)
-    assert_success response
-    assert_not_nil response.service_url
-    assert_not_nil response.transaction_id
-    assert_equal @valid_options[:order_id], response.order_id
-  end
+  # def test_setup_purchase_with_valid_options
+  #   response = @gateway.setup_purchase(550, @valid_options)
+  #   assert_success response
+  #   assert_not_nil response.service_url
+  #   assert_not_nil response.transaction_id
+  #   assert_equal @valid_options[:order_id], response.order_id
+  # end
 
-  def test_setup_purchase_with_invalid_amount
-    response = @gateway.setup_purchase(0.5, @valid_options)
+  # def test_setup_purchase_with_invalid_amount
+  #   response = @gateway.setup_purchase(0.5, @valid_options)
 
-    assert_failure response
-    assert_equal "BR1210", response.error_code
-    assert_not_nil response.error_message
-    assert_not_nil response.consumer_error_message
-  end
+  #   assert_failure response
+  #   assert_equal "BR1210", response.error_code
+  #   assert_not_nil response.error_message
+  #   assert_not_nil response.consumer_error_message
+  # end
 
-  # TODO: Should we raise a SecurityError instead of setting success to false?
-  def test_status_response_with_invalid_signature
-    Ideal::StatusResponse.any_instance.stubs(:signature).returns('db82/jpJRvKQKoiDvu33X0yoDAQpayJOaW2Y8zbR1qk1i3epvTXi+6g+QVBY93YzGv4w+Va+vL3uNmzyRjYsm2309d1CWFVsn5Mk24NLSvhYfwVHEpznyMqizALEVUNSoiSHRkZUDfXowBAyLT/tQVGbuUuBj+TKblY826nRa7U=')
-    response = capture_transaction(:success)
+  # # TODO: Should we raise a SecurityError instead of setting success to false?
+  # def test_status_response_with_invalid_signature
+  #   Ideal::StatusResponse.any_instance.stubs(:signature).returns('db82/jpJRvKQKoiDvu33X0yoDAQpayJOaW2Y8zbR1qk1i3epvTXi+6g+QVBY93YzGv4w+Va+vL3uNmzyRjYsm2309d1CWFVsn5Mk24NLSvhYfwVHEpznyMqizALEVUNSoiSHRkZUDfXowBAyLT/tQVGbuUuBj+TKblY826nRa7U=')
+  #   response = capture_transaction(:success)
 
-    assert_failure response
-    assert !response.verified?
-  end
+  #   assert_failure response
+  #   assert !response.verified?
+  # end
 
   ###
   #
@@ -67,45 +67,45 @@ class IdealTest < Test::Unit::TestCase
     assert_match /^\d{4}$/, issuer_list[0][:id]
   end
 
-  def test_successful_transaction
-    capture_transaction(:success)
-    assert_success capture_transaction(:success)
-  end
+  # def test_successful_transaction
+  #   capture_transaction(:success)
+  #   assert_success capture_transaction(:success)
+  # end
 
-  def test_cancelled_transaction
-    captured_response = capture_transaction(:cancelled)
+  # def test_cancelled_transaction
+  #   captured_response = capture_transaction(:cancelled)
 
-    assert_failure captured_response
-    assert_equal :cancelled, captured_response.status
-  end
+  #   assert_failure captured_response
+  #   assert_equal :cancelled, captured_response.status
+  # end
 
-  def test_expired_transaction
-    captured_response = capture_transaction(:expired)
+  # def test_expired_transaction
+  #   captured_response = capture_transaction(:expired)
 
-    assert_failure captured_response
-    assert_equal :expired, captured_response.status
-  end
+  #   assert_failure captured_response
+  #   assert_equal :expired, captured_response.status
+  # end
 
-  def test_still_open_transaction
-    captured_response = capture_transaction(:open)
+  # def test_still_open_transaction
+  #   captured_response = capture_transaction(:open)
 
-    assert_failure captured_response
-    assert_equal :open, captured_response.status
-  end
+  #   assert_failure captured_response
+  #   assert_equal :open, captured_response.status
+  # end
 
-  def test_failed_transaction
-    captured_response = capture_transaction(:failure)
+  # def test_failed_transaction
+  #   captured_response = capture_transaction(:failure)
 
-    assert_failure captured_response
-    assert_equal :failure, captured_response.status
-  end
+  #   assert_failure captured_response
+  #   assert_equal :failure, captured_response.status
+  # end
 
-  def test_internal_server_error
-    captured_response = capture_transaction(:server_error)
+  # def test_internal_server_error
+  #   captured_response = capture_transaction(:server_error)
 
-    assert_failure captured_response
-    assert_equal 'SO1000', captured_response.error_code
-  end
+  #   assert_failure captured_response
+  #   assert_equal 'SO1000', captured_response.error_code
+  # end
 
   private
 

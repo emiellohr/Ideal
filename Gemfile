@@ -7,4 +7,5 @@ gemspec
 
 group :test do
   gem 'activesupport'
+  gem "mocha", :require => false
 end

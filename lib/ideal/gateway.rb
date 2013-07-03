@@ -242,10 +242,10 @@ module Ideal
     def strip_whitespace(str)
       str.gsub(/\s/m,'')
     end
-    
+
     #signs the xml
     def sign!(xml)
-      digest_val = digest_value(xml)
+      digest_val = digest_value(xml.doc.children[0])
       xml.Signature(xmlns: 'http://www.w3.org/2000/09/xmldsig#') do |xml|
         xml.SignedInfo do |xml|
           xml.CanonicalizationMethod(Algorithm: 'http://www.w3.org/2001/10/xml-exc-c14n#')
@@ -258,29 +258,56 @@ module Ideal
             xml.DigestValue digest_val
           end
         end
-        xml.SignatureValue signature_value(digest_val)
+        xml.SignatureValue signature_value(xml.doc.xpath("//Signature:SignedInfo", 'Signature' => 'http://www.w3.org/2000/09/xmldsig#')[0])
         xml.KeyInfo do |xml|
           xml.KeyName fingerprint
         end
       end
     end
 
+    #signs the xml
+    # def sign!(xml)
+    #   digest_val = digest_value(xml.doc.children[0])
+
+    #   xml.Signature(xmlns: 'http://www.w3.org/2000/09/xmldsig#') do |xml|
+    #     xml.SignedInfo do |xml|
+    #       xml.CanonicalizationMethod(Algorithm: 'http://www.w3.org/2001/10/xml-exc-c14n#')
+    #       xml.SignatureMethod(Algorithm: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256')
+    #       xml.Reference(URI: '') do |xml|
+    #         xml.Transforms do |xml|
+    #           xml.Transform(Algorithm: 'http://www.w3.org/2000/09/xmldsig#enveloped-signature')
+    #         end
+    #         xml.DigestMethod(Algorithm: 'http://www.w3.org/2001/04/xmlenc#sha256')
+    #         xml.DigestValue digest_val
+    #       end
+    #     end
+    #     xml.SignatureValue signature_value(xml.doc.xpath("//Signature:SignedInfo", 'Signature' => 'http://www.w3.org/2000/09/xmldsig#')[0])
+    #     xml.KeyInfo do |xml|
+    #       xml.KeyName fingerprint
+    #     end
+    #   end
+    # end
+
     # Creates a +signatureValue+ from the xml+.
     def signature_value(digest_value)
-      signature = Ideal::Gateway.private_key.sign(OpenSSL::Digest::SHA256.new, digest_value)
-      strip_whitespace(Base64.encode64(strip_whitespace(signature)))
+      canonical = digest_value.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
+      signature = self.class.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
+      strip_whitespace(Base64.encode64(signature))
     end
     
     # Creates a +digestValue+ from the xml+.
     def digest_value(xml)
-      canonical = xml.doc.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
+      canonical = xml.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
       digest = OpenSSL::Digest::SHA256.new.digest canonical
-      strip_whitespace(Base64.encode64(strip_whitespace(digest)))
+      Base64.encode64(digest).chomp
     end
     
     # Creates a keyName value for the XML signature
     def fingerprint
-      Digest::SHA1.hexdigest(Ideal::Gateway.private_certificate.to_der).upcase
+      contents = Ideal::Gateway.private_certificate.to_s
+      contents = contents.gsub('-----END CERTIFICATE-----', '').gsub('-----BEGIN CERTIFICATE-----', '')
+      contents = Base64.encode64(contents)
+      Digest::SHA1.hexdigest(contents).upcase
     end
 
     # Returns a string containing the current UTC time, formatted as per the
