@@ -69,6 +69,7 @@ module Ideal
     # Instantiates and assings a OpenSSL::X509::Certificate instance with the
     # provided private certificate data.
     def self.private_certificate=(certificate_data)
+      @@data = certificate_data
       @private_certificate = OpenSSL::X509::Certificate.new(certificate_data)
     end
 
@@ -304,16 +305,18 @@ module Ideal
     
     # Creates a keyName value for the XML signature
     def fingerprint
-      contents = Ideal::Gateway.private_certificate.to_s
+      contents = self.class.private_certificate.to_s
       contents = contents.gsub('-----END CERTIFICATE-----', '').gsub('-----BEGIN CERTIFICATE-----', '')
-      contents = Base64.encode64(contents)
+      puts @@data
+      contents = Base64.decode64(contents)
       Digest::SHA1.hexdigest(contents).upcase
     end
 
     # Returns a string containing the current UTC time, formatted as per the
     # iDeal specifications, except we don't use miliseconds.
     def created_at_timestamp
-      Time.now.gmtime.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+      Time.now.strftime("%Y-%m-%dT%H:%M:%S.%LZ")
+      "2013-07-03T00:00:00.000Z"
     end
 
     def requires!(options, *keys)
