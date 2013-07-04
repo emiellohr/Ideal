@@ -4,6 +4,7 @@ require 'openssl'
 require 'net/https'
 require 'base64'
 require 'digest/sha2'
+require 'uri'
 
 module Ideal
   # === Response classes
@@ -69,7 +70,6 @@ module Ideal
     # Instantiates and assings a OpenSSL::X509::Certificate instance with the
     # provided private certificate data.
     def self.private_certificate=(certificate_data)
-      @@data = certificate_data
       @private_certificate = OpenSSL::X509::Certificate.new(certificate_data)
     end
 
@@ -215,7 +215,7 @@ module Ideal
       log('URL', url)
       log('Request', body)
       response = REST.post(url, body, {
-        'Content-Type' => 'application/xml; charset=utf-8'
+        'Content-Type' => 'text/xml'
       }, {
         :tls_verify      => true,
         :tls_key         => self.class.private_key,
@@ -266,29 +266,6 @@ module Ideal
       end
     end
 
-    #signs the xml
-    # def sign!(xml)
-    #   digest_val = digest_value(xml.doc.children[0])
-
-    #   xml.Signature(xmlns: 'http://www.w3.org/2000/09/xmldsig#') do |xml|
-    #     xml.SignedInfo do |xml|
-    #       xml.CanonicalizationMethod(Algorithm: 'http://www.w3.org/2001/10/xml-exc-c14n#')
-    #       xml.SignatureMethod(Algorithm: 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256')
-    #       xml.Reference(URI: '') do |xml|
-    #         xml.Transforms do |xml|
-    #           xml.Transform(Algorithm: 'http://www.w3.org/2000/09/xmldsig#enveloped-signature')
-    #         end
-    #         xml.DigestMethod(Algorithm: 'http://www.w3.org/2001/04/xmlenc#sha256')
-    #         xml.DigestValue digest_val
-    #       end
-    #     end
-    #     xml.SignatureValue signature_value(xml.doc.xpath("//Signature:SignedInfo", 'Signature' => 'http://www.w3.org/2000/09/xmldsig#')[0])
-    #     xml.KeyInfo do |xml|
-    #       xml.KeyName fingerprint
-    #     end
-    #   end
-    # end
-
     # Creates a +signatureValue+ from the xml+.
     def signature_value(digest_value)
       canonical = digest_value.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
@@ -307,9 +284,8 @@ module Ideal
     def fingerprint
       contents = self.class.private_certificate.to_s
       contents = contents.gsub('-----END CERTIFICATE-----', '').gsub('-----BEGIN CERTIFICATE-----', '')
-      puts @@data
       contents = Base64.decode64(contents)
-      Digest::SHA1.hexdigest(contents).upcase
+      Digest::SHA1.hexdigest(contents)
     end
 
     # Returns a string containing the current UTC time, formatted as per the
@@ -347,7 +323,7 @@ module Ideal
 
     def build_directory_request
       timestamp = created_at_timestamp
-      Nokogiri::XML::Builder.new(encoding: 'UTF-8') do |xml|
+      Nokogiri::XML::Builder.new(encoding: 'utf-8') do |xml|
         xml.DirectoryReq(xmlns: XML_NAMESPACE, version: API_VERSION) do |xml|
           xml.createDateTimestamp created_at_timestamp
           xml.Merchant do |xml|
