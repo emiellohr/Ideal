@@ -22,9 +22,9 @@ class IdealTest < Test::Unit::TestCase
     }
   end
 
-  # def test_making_test_requests
-  #   assert @gateway.issuers.test?
-  # end
+  def test_making_test_requests
+    assert @gateway.issuers.test?
+  end
 
   # def test_setup_purchase_with_valid_options
   #   response = @gateway.setup_purchase(550, @valid_options)
@@ -62,15 +62,17 @@ class IdealTest < Test::Unit::TestCase
 
   def test_retrieval_of_issuers
     issuer_list = @gateway.issuers.list
-    assert_equal 1, issuer_list.length
+    assert_equal 2, issuer_list.length
     assert_match /^Issuer\ Sim/, issuer_list[0][:name]
-    assert_match /^\d{4}$/, issuer_list[0][:id]
+    assert_match /^INGBNL2A$/, issuer_list[0][:id]
+    assert_match /^Issuer\ Sim/, issuer_list[1][:name]
+    assert_match /^RABONL2U$/, issuer_list[1][:id]
   end
 
-  # def test_successful_transaction
-  #   capture_transaction(:success)
-  #   assert_success capture_transaction(:success)
-  # end
+  def test_successful_transaction
+    capture_transaction(:success)
+    assert_success capture_transaction(:success)
+  end
 
   # def test_cancelled_transaction
   #   captured_response = capture_transaction(:cancelled)

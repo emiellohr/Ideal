@@ -332,7 +332,7 @@ module Ideal
           end
           sign!(xml)
         end
-      end.to_xml
+      end.to_xml(:save_with => Nokogiri::XML::Node::SaveOptions::AS_XML)
     end
 
     def build_transaction_request(money, options)
