@@ -187,6 +187,10 @@ module Ideal
       @success = transaction_successful?
     end
 
+    def transaction_open?
+      !error_occured? && status == :open && verified?
+    end
+
     # Returns the status message, which is one of: <tt>:success</tt>,
     # <tt>:cancelled</tt>, <tt>:expired</tt>, <tt>:open</tt>, or
     # <tt>:failure</tt>.
