@@ -1,9 +1,7 @@
 require 'rubygems'
 require 'test/unit'
 require 'yaml'
-# require 'mocha'
-# require 'mocha/integration/test_unit'
-# require "mocha/setup"
+require "mocha/setup"
 require 'active_support/test_case'
 
 $LOAD_PATH.unshift(File.join(File.dirname(__FILE__), '..', 'lib'))

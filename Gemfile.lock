@@ -10,7 +10,7 @@ GEM
   specs:
     activesupport (3.0.0)
     metaclass (0.0.1)
-    mocha (0.10.0)
+    mocha (0.14.0)
       metaclass (~> 0.0.1)
     nap (0.5.1)
     nokogiri (1.5.5)

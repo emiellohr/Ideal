@@ -1,7 +1,6 @@
 # encoding: utf-8
 
 require File.expand_path('../helper', __FILE__)
-require 'mocha'
 
 module IdealTestCases
   # This method is called at the end of the file when all fixture data has been loaded.
@@ -100,7 +99,7 @@ module IdealTestCases
 
     def test_returns_created_at_timestamp
       timestamp = '2001-12-17T09:30:47.000Z'
-      Time.any_instance.stubs(:gmtime).returns(DateTime.parse(timestamp))
+      Time.expects(:now).returns(DateTime.parse(timestamp))
 
       assert_equal timestamp, @gateway.send(:created_at_timestamp)
     end
@@ -126,14 +125,21 @@ module IdealTestCases
     def test_signature_value_generation
       sha256 = OpenSSL::Digest::SHA256.new
       OpenSSL::Digest::SHA256.stubs(:new).returns(sha256)
-      signature_value = @gateway.send(:signature_value, 'foo')
-      signature = Ideal::Gateway.private_key.sign(sha256, 'foo')
-      expected_signature_value = strip_whitespace(Base64.encode64(strip_whitespace(signature)))
+      signature_value = ''
+      xml = Nokogiri::XML::Builder.new do |xml|
+        xml.request do |xml|
+          xml.content 'foo'
+          signature_value = @gateway.send(:signature_value, xml.doc)
+        end
+      end
+      canonical = xml.doc.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
+      signature = Ideal::Gateway.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
+      expected_signature_value = strip_whitespace(Base64.encode64(signature))
       assert_equal expected_signature_value, signature_value
     end
 
     def test_key_name_generation
-      expected_token = Digest::SHA1.hexdigest(OpenSSL::X509::Certificate.new(PRIVATE_CERTIFICATE).to_der).upcase
+      expected_token = Digest::SHA1.hexdigest(OpenSSL::X509::Certificate.new(PRIVATE_CERTIFICATE).to_der)
       assert_equal expected_token, @gateway.send(:fingerprint)
     end
 
@@ -378,7 +384,7 @@ module IdealTestCases
     def setup
       @gateway = Ideal::Gateway.new
 
-      @gateway.stubs(:build_transaction_request).with(4321, VALID_PURCHASE_OPTIONS).returns('the request body')
+      @gateway.stubs(:build_transaction_request).with('43.21', VALID_PURCHASE_OPTIONS).returns('the request body')
       @gateway.expects(:ssl_post).with(@gateway.request_url, 'the request body').returns(ACQUIRER_TRANSACTION_RESPONSE)
 
       @setup_purchase_response = @gateway.setup_purchase(4321, VALID_PURCHASE_OPTIONS)
@@ -389,7 +395,7 @@ module IdealTestCases
     end
 
     def test_setup_purchase_returns_response_with_service_url
-      assert_equal 'https://ideal.example.com/long_service_url?X009=BETAAL&X010=20', @setup_purchase_response.service_url
+      assert_equal 'https://idealtest.secure-ing.com/ideal/issuerSim.do?trxid=0050000075036498&amp;ideal=prob', @setup_purchase_response.service_url
     end
 
     def test_setup_purchase_returns_response_with_transaction_and_order_ids
@@ -584,20 +590,24 @@ ilZjTJIlLOkXk6uE8vQGjZy0BUnjNPkXOQGkTyj4jDxZ2z+z9Vy8BwfothdcYbZK
   </Directory>
 </DirectoryRes>}
 
-  ACQUIRER_TRANSACTION_RESPONSE = %{<?xml version="1.0" encoding="UTF-8"?>
-<AcquirerTrxRes xmlns="http://www.idealdesk.com/Message" version="1.1.0">
-  <createDateTimeStamp>2001-12-17T09:30:47.0Z</createDateTimeStamp>
-  <Acquirer>
-    <acquirerID>1545</acquirerID>
-  </Acquirer>
-  <Issuer>
-    <issuerAuthenticationURL>https://ideal.example.com/long_service_url?X009=BETAAL&amp;X010=20</issuerAuthenticationURL>
-  </Issuer>
-  <Transaction>
-     <transactionID>0001023456789112</transactionID>
-     <purchaseID>iDEAL-aankoop 21</purchaseID>
-  </Transaction>
-</AcquirerTrxRes>}
+  ACQUIRER_TRANSACTION_RESPONSE = %{<?xml version="1.0" encoding="UTF-8"?><AcquirerTrxRes xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" xmlns:ns2="http://www.w3.org/2000/09/xmldsig#" version="3.3.1">
+    <createDateTimestamp>2013-07-09T09:54:07.937Z</createDateTimestamp>
+    <Acquirer>
+        <acquirerID>0050</acquirerID>
+    </Acquirer>
+    <Issuer>
+        <issuerAuthenticationURL>https://idealtest.secure-ing.com/ideal/issuerSim.do?trxid=0050000075036498&amp;amp;ideal=prob</issuerAuthenticationURL>
+    </Issuer>
+    <Transaction>
+        <transactionID>0001023456789112</transactionID>
+        <transactionCreateDateTimestamp>2013-07-09T09:54:07.937Z</transactionCreateDateTimestamp>
+        <purchaseID>iDEAL-aankoop 21</purchaseID>
+    </Transaction>
+<Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><DigestValue>yCUEOXRAhQFj9kuXCxVnXl98VoY/LOOp03fnCnPiLWE=</DigestValue></Reference></SignedInfo><SignatureValue>RyA3MNJ1I7MobefAI92f4cVgnlKmJb7ZjeF+CKqjrsE+tQlyToXPg1j8AKiB+/9uRQpBDCaWnaG6
+aw3I0l4bwsanwranihUEdoa+GdB9ynHhTL5VbMgput3CQmMcoCDTXADICIgg/1aG/+HZSz1+JYTx
+vSKu3y82WjlNzRZlSZH6E8m4GuwdEuuWAt17QiSbHFZrpy3tkPgSPqgEenugI6g0kdICGKR8ibJr
+uyi05rxCB+vLVBx2AoQTzl4uEl6a/Vghag2XGpwH4h1aomQav5Be07R/ayAA4mqUEpw0UHfVweJe
+/CR0PFNn5GsozmhgKJDt0W7L1/jjhWNg6jTusw==</SignatureValue><KeyInfo><KeyName>FABA03D7B8E32DEB06FA4FA5B66DE62CED1CA6B7</KeyName></KeyInfo></Signature></AcquirerTrxRes>}
 
   ACQUIRER_SUCCEEDED_STATUS_RESPONSE = %{<?xml version="1.0" encoding="UTF-8"?>
 <AcquirerStatusRes xmlns="http://www.idealdesk.com/Message" version="1.1.0">
@@ -612,9 +622,26 @@ ilZjTJIlLOkXk6uE8vQGjZy0BUnjNPkXOQGkTyj4jDxZ2z+z9Vy8BwfothdcYbZK
      <consumerAccountNumber>0949298989</consumerAccountNumber>
      <consumerCity>DEN HAAG</consumerCity>
   </Transaction>
-  <Signature>
-    <signatureValue>db82/jpJRvKQKoiDvu33X0yoDAQpayJOaW2Y8zbR1qk1i3epvTXi+6g+QVBY93YzGv4w+Va+vL3uNmzyRjYsm2309d1CWFVsn5Mk24NLSvhYfwVHEpznyMqizALEVUNSoiSHRkZUDfXowBAyLT/tQVGbuUuBj+TKblY826nRa7U=</signatureValue>
-    <fingerprint>1E15A00E3D7DF085768749D4ABBA3284794D8AE9</fingerprint>
+  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+    <SignedInfo>
+      <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <Reference URI="">
+        <Transforms>
+          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+        </Transforms>
+        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <DigestValue>D06IkQmkiqem6PM9Xr0tXipP/QQGb3mlTReByNiF58s=</DigestValue>
+      </Reference>
+    </SignedInfo>
+    <SignatureValue>MxSmqnEhUcTrDvQdb+jN8qA/KTqHkAox7ZSYrNE+tkKlwaRKLh+9/sOIN2rGDqx+7j0fBdTuQKox
+pvsB5n/43bWZL1KLIZKD2UWMDFsVv95OeqMG4EtmsLLFncznTyUoohOIfkSws10MqU2JBPQuGNzF
+JuxZdD2rAY1RO6jbdzhWkXUjFByLPcNozSlrb3LgP6KiIn40Wa1pl7u/JZojFQ9Up7Tgw8b5/u6v
+UCyQ5CFEgu1RWBL9pDCLZDvnpWOpxskV/E+h9fKrrfGxi3SuQjaKAaSTbuKy2U2YuSGFpgaXPiIo
+Llg4RASSt/R+S6nXvQihfIca8IeMbmQ3a6ewhA==</SignatureValue>
+    <KeyInfo>
+      <KeyName>FABA03D7B8E32DEB06FA4FA5B66DE62CED1CA6B7</KeyName>
+    </KeyInfo>
   </Signature>
 </AcquirerStatusRes>}
 
@@ -631,9 +658,22 @@ ilZjTJIlLOkXk6uE8vQGjZy0BUnjNPkXOQGkTyj4jDxZ2z+z9Vy8BwfothdcYbZK
      <consumerAccountNumber>0949298989</consumerAccountNumber>
      <consumerCity>DEN HAAG</consumerCity>
   </Transaction>
-  <Signature>
-    <signatureValue>WRONG</signatureValue>
-    <fingerprint>1E15A00E3D7DF085768749D4ABBA3284794D8AE9</fingerprint>
+  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+    <SignedInfo>
+      <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+      <Reference URI="">
+        <Transforms>
+          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
+        </Transforms>
+        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
+        <DigestValue>D06IkQmkiqem6PM9Xr0tXipP/QQGb3mlTReByNiF58s=</DigestValue>
+      </Reference>
+    </SignedInfo>
+    <SignatureValue>WRONG</SignatureValue>
+    <KeyInfo>
+      <KeyName>FABA03D7B8E32DEB06FA4FA5B66DE62CED1CA6B7</KeyName>
+    </KeyInfo>
   </Signature>
 </AcquirerStatusRes>}
 
@@ -657,7 +697,7 @@ ilZjTJIlLOkXk6uE8vQGjZy0BUnjNPkXOQGkTyj4jDxZ2z+z9Vy8BwfothdcYbZK
 </AcquirerStatusRes>}
 
   ERROR_RESPONSE = %{<?xml version="1.0" encoding="UTF-8"?>
-<ErrorRes xmlns="http://www.idealdesk.com/Message" version="1.1.0">
+<AcquirerErrorRes xmlns="http://www.idealdesk.com/Message" version="1.1.0">
   <createDateTimeStamp>2001-12-17T09:30:47.0Z</createDateTimeStamp>
   <Error>
     <errorCode>SO1000</errorCode>
@@ -667,103 +707,18 @@ ilZjTJIlLOkXk6uE8vQGjZy0BUnjNPkXOQGkTyj4jDxZ2z+z9Vy8BwfothdcYbZK
     <suggestedExpirationPeriod></suggestedExpirationPeriod>
     <consumerMessage>Betalen met iDEAL is nu niet mogelijk.</consumerMessage>
   </Error>
-</ErrorRes>}
+</AcquirerErrorRes>}
 
   TRANSACTION_REQUEST =  @transaction_xml = %{<?xml version="1.0" encoding="UTF-8"?>
-<AcquirerTrxReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1">
-  <createDateTimestamp>created_at_timestamp</createDateTimestamp>
-  <Issuer>
-    <issuerID>issuer_id</issuerID>
-  </Issuer>
-  <Merchant>
-    <merchantID>123456789</merchantID>
-    <subID>0</subID>
-    <merchantReturnURL>return_url</merchantReturnURL>
-  </Merchant>
-  <Transaction>
-    <purchaseID>purchase_id</purchaseID>
-    <amount>amount</amount>
-    <currency>EUR</currency>
-    <expirationPeriod>expiration_period</expirationPeriod>
-    <language>nl</language>
-    <description>description</description>
-    <entranceCode>entrance_code</entranceCode>
-  </Transaction>
-  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
-    <SignedInfo>
-      <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-      <Reference URI="">
-        <Transforms>
-          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
-        </Transforms>
-        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-        <DigestValue>digest_value</DigestValue>
-      </Reference>
-    </SignedInfo>
-    <SignatureValue>signature_value</SignatureValue>
-    <KeyInfo>
-      <KeyName>fingerprint</KeyName>
-    </KeyInfo>
-  </Signature>
-</AcquirerTrxReq>
+<AcquirerTrxReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1"><createDateTimestamp>created_at_timestamp</createDateTimestamp><Issuer><issuerID>issuer_id</issuerID></Issuer><Merchant><merchantID>123456789</merchantID><subID>0</subID><merchantReturnURL>return_url</merchantReturnURL></Merchant><Transaction><purchaseID>purchase_id</purchaseID><amount>amount</amount><currency>EUR</currency><expirationPeriod>expiration_period</expirationPeriod><language>nl</language><description>description</description><entranceCode>entrance_code</entranceCode></Transaction><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><DigestValue>digest_value</DigestValue></Reference></SignedInfo><SignatureValue>signature_value</SignatureValue><KeyInfo><KeyName>fingerprint</KeyName></KeyInfo></Signature></AcquirerTrxReq>
 }
 
-  DIRECTORY_REQUEST = %{<?xml version="1.0" encoding="UTF-8"?>
-<DirectoryReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1">
-  <createDateTimestamp>created_at_timestamp</createDateTimestamp>
-  <Merchant>
-    <merchantID>123456789</merchantID>
-    <subID>0</subID>
-  </Merchant>
-  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
-    <SignedInfo>
-      <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-      <Reference URI="">
-        <Transforms>
-          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
-        </Transforms>
-        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-        <DigestValue>digest_value</DigestValue>
-      </Reference>
-    </SignedInfo>
-    <SignatureValue>signature_value</SignatureValue>
-    <KeyInfo>
-      <KeyName>fingerprint</KeyName>
-    </KeyInfo>
-  </Signature>
-</DirectoryReq>
+  DIRECTORY_REQUEST = %{<?xml version="1.0" encoding="utf-8"?>
+<DirectoryReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1"><createDateTimestamp>created_at_timestamp</createDateTimestamp><Merchant><merchantID>123456789</merchantID><subID>0</subID></Merchant><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><DigestValue>digest_value</DigestValue></Reference></SignedInfo><SignatureValue>signature_value</SignatureValue><KeyInfo><KeyName>fingerprint</KeyName></KeyInfo></Signature></DirectoryReq>
 }
 
   STATUS_REQUEST = %{<?xml version="1.0" encoding="UTF-8"?>
-<AcquirerStatusReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1">
-  <createDateTimestamp>created_at_timestamp</createDateTimestamp>
-  <Merchant>
-    <merchantID>123456789</merchantID>
-    <subID>0</subID>
-  </Merchant>
-  <Transaction>
-    <transactionID>transaction_id</transactionID>
-  </Transaction>
-  <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
-    <SignedInfo>
-      <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-      <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-      <Reference URI="">
-        <Transforms>
-          <Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/>
-        </Transforms>
-        <DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-        <DigestValue>digest_value</DigestValue>
-      </Reference>
-    </SignedInfo>
-    <SignatureValue>signature_value</SignatureValue>
-    <KeyInfo>
-      <KeyName>fingerprint</KeyName>
-    </KeyInfo>
-  </Signature>
-</AcquirerStatusReq>
+<AcquirerStatusReq xmlns="http://www.idealdesk.com/ideal/messages/mer-acq/3.3.1" version="3.3.1"><createDateTimestamp>created_at_timestamp</createDateTimestamp><Merchant><merchantID>123456789</merchantID><subID>0</subID></Merchant><Transaction><transactionID>transaction_id</transactionID></Transaction><Signature xmlns="http://www.w3.org/2000/09/xmldsig#"><SignedInfo><CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/><SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/><Reference URI=""><Transforms><Transform Algorithm="http://www.w3.org/2000/09/xmldsig#enveloped-signature"/></Transforms><DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/><DigestValue>digest_value</DigestValue></Reference></SignedInfo><SignatureValue>signature_value</SignatureValue><KeyInfo><KeyName>fingerprint</KeyName></KeyInfo></Signature></AcquirerStatusReq>
 }
   setup_ideal_gateway!
 end

@@ -186,6 +186,8 @@ module Ideal
     #
     # See the Gateway class description for a more elaborate example.
     def setup_purchase(money, options)
+      # convert amount in cents (integer) to format dec(12,2) with dot as separator.
+      money = "%.2f" % (money.to_i.to_f/100)
       post_data request_url, build_transaction_request(money, options), TransactionResponse
     end
 
@@ -292,7 +294,6 @@ module Ideal
     # iDeal specifications, except we don't use miliseconds.
     def created_at_timestamp
       Time.now.strftime("%Y-%m-%dT%H:%M:%S.%LZ")
-      "2013-07-03T00:00:00.000Z"
     end
 
     def requires!(options, *keys)
@@ -318,7 +319,7 @@ module Ideal
           end
           sign!(xml)
         end
-      end.to_xml
+      end.to_xml(:save_with => Nokogiri::XML::Node::SaveOptions::AS_XML)
     end
 
     def build_directory_request
@@ -367,7 +368,7 @@ module Ideal
           end
           sign!(xml)
         end
-      end.to_xml
+      end.to_xml(:save_with => Nokogiri::XML::Node::SaveOptions::AS_XML)
     end
     
     def log(thing, contents)

@@ -4,6 +4,7 @@ require 'cgi'
 require 'openssl'
 require 'base64'
 require 'rexml/document'
+require 'rexml/formatters/transitive'
 
 module Ideal
   # The base class for all iDEAL response classes.
@@ -14,6 +15,7 @@ module Ideal
     attr_accessor :response
 
     def initialize(response_body, options = {})
+      @xml = Nokogiri::XML(response_body)
       @response = REXML::Document.new(response_body).root
       @success = !error_occured?
       @test = options[:test]
@@ -138,7 +140,7 @@ module Ideal
     private
 
     def error_occured?
-      @response.name == 'ErrorRes'
+      @response.name == 'AcquirerErrorRes'
     end
 
     def text(path)
@@ -197,7 +199,7 @@ module Ideal
     # verified.
     def verified?
       @verified ||= Ideal::Gateway.ideal_certificate.public_key.
-                      verify(OpenSSL::Digest::SHA1.new, signature, message)
+                      verify(OpenSSL::Digest::SHA256.new, signature, message)
     end
 
     # Returns the bankaccount number when the transaction was successful.
@@ -226,11 +228,12 @@ module Ideal
 
     # The message that we need to verify the authenticity.
     def message
-      text('//createDateTimeStamp') + text('//transactionID') + text('//status') + text('//consumerAccountNumber')
+      signed_info = @xml.at_xpath("//descendant::xmldsig:SignedInfo", "xmldsig" => "http://www.w3.org/2000/09/xmldsig#")
+      signed_info.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
     end
 
     def signature
-      Base64.decode64(text('//signatureValue'))
+      Base64.decode64(text('//SignatureValue'))
     end
   end
 
