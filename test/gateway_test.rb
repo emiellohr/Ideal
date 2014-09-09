@@ -5,16 +5,17 @@ require File.expand_path('../helper', __FILE__)
 module IdealTestCases
   # This method is called at the end of the file when all fixture data has been loaded.
   def self.setup_ideal_gateway!
-    Ideal::Gateway.class_eval do
-      self.acquirer = :rabobank
-
-      self.merchant_id = '123456789'
-
-      self.passphrase = 'passphrase'
-      self.private_key = PRIVATE_KEY
-      self.private_certificate = PRIVATE_CERTIFICATE
-      self.ideal_certificate = IDEAL_CERTIFICATE
+    @merchant = Ideal::Merchant.new.tap do |m|
+      m.acquirer = :rabobank
+      m.merchant_id = '123456789'
+      m.passphrase = 'passphrase'
+      m.private_key = PRIVATE_KEY
+      m.private_certificate = PRIVATE_CERTIFICATE
     end
+
+    Ideal::Gateway.ideal_certificate = IDEAL_CERTIFICATE
+    Ideal::Gateway.add_merchant('test', @merchant)
+    [Ideal::Gateway.new('test'), @merchant]
   end
 
   VALID_PURCHASE_OPTIONS = {
@@ -27,74 +28,21 @@ module IdealTestCases
   }
   
 
-  class ClassMethodsTest < Test::Unit::TestCase
-    def test_merchant_id
-      assert_equal Ideal::Gateway.merchant_id, '123456789'
-    end
-
-    def test_verify_live_url_for_ing
-      Ideal::Gateway.acquirer = :ing
-      assert_equal 'https://ideal.secure-ing.com/ideal/iDEALv3', Ideal::Gateway.live_url
-    end
-
-    def test_verify_live_url_for_rabobank
-      Ideal::Gateway.acquirer = :rabobank
-      assert_equal 'https://ideal.rabobank.nl/ideal/iDEALv3', Ideal::Gateway.live_url
-    end
-
-    def test_verify_live_urls_for_abnamro
-      Ideal::Gateway.acquirer = :abnamro
-      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDeal', Ideal::Gateway.live_url
-    end
-
-    def test_does_not_allow_configuration_of_unknown_acquirers
-      assert_raise(ArgumentError) do
-        Ideal::Gateway.acquirer = :unknown
-      end
-    end
-
-    def test_acquirers
-      assert_equal 'https://ideal.rabobank.nl/ideal/iDEALv3', Ideal::Gateway.acquirers['rabobank']['live_url']
-      assert_equal 'https://ideal.secure-ing.com/ideal/iDEALv3', Ideal::Gateway.acquirers['ing']['live_url']
-      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDeal', Ideal::Gateway.acquirers['abnamro']['live_url']
-    end
-
-    def test_private_certificate_returns_a_loaded_Certificate_instance
-      assert_equal Ideal::Gateway.private_certificate.to_text,
-        OpenSSL::X509::Certificate.new(PRIVATE_CERTIFICATE).to_text
-    end
-
-    def test_private_key_returns_a_loaded_PKey_RSA_instance
-      assert_equal Ideal::Gateway.private_key.to_text,
-        OpenSSL::PKey::RSA.new(PRIVATE_KEY, Ideal::Gateway.passphrase).to_text
-    end
-
-    def test_ideal_certificate_returns_a_loaded_Certificate_instance
-      assert_equal Ideal::Gateway.ideal_certificate.to_text,
-        OpenSSL::X509::Certificate.new(IDEAL_CERTIFICATE).to_text
-    end
-  end
-
   class GeneralTest < Test::Unit::TestCase
     def setup
-      @gateway = Ideal::Gateway.new
-    end
-
-    def test_optional_initialization_options
-      assert_equal 0, Ideal::Gateway.new.sub_id
-      assert_equal 1, Ideal::Gateway.new(:sub_id => 1).sub_id
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
     end
 
     def test_returns_the_test_url_when_in_the_test_env
-      Ideal::Gateway.acquirer = :ing
-      Ideal::Gateway.environment = :test
-      assert_equal Ideal::Gateway.test_url, @gateway.send(:request_url)
+      @merchant.acquirer = :ing
+      @merchant.environment = :test
+      assert_equal @merchant.test_url, @gateway.request_url
     end
 
     def test_returns_the_live_url_when_not_in_the_test_env
-      Ideal::Gateway.acquirer = :ing
-      Ideal::Gateway.environment = :live
-      assert_equal Ideal::Gateway.live_url, @gateway.send(:request_url)
+      @merchant.acquirer = :rabobank
+      @merchant.environment = :live
+      assert_equal @merchant.live_url, @gateway.request_url
     end
 
     def test_returns_created_at_timestamp
@@ -133,7 +81,7 @@ module IdealTestCases
         end
       end
       canonical = xml.doc.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
-      signature = Ideal::Gateway.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
+      signature = @merchant.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
       expected_signature_value = strip_whitespace(Base64.encode64(signature))
       assert_equal expected_signature_value, signature_value
     end
@@ -159,14 +107,14 @@ module IdealTestCases
     # end
 
     def test_posts_data_with_ssl_to_request_url_and_return_the_correct_response_for_test
-      Ideal::Gateway.environment = :test
+      @merchant.environment = :test
       Ideal::Response.expects(:new).with('response', :test => true)
       @gateway.expects(:ssl_post).with(@gateway.request_url, 'data').returns('response')
       @gateway.send(:post_data, @gateway.request_url, 'data', Ideal::Response)
     end
 
     def test_posts_data_with_ssl_to_request_url_and_return_the_correct_response_for_live
-      Ideal::Gateway.environment = :live
+      @merchant.environment = :live
       Ideal::Response.expects(:new).with('response', :test => false)
       @gateway.expects(:ssl_post).with(@gateway.request_url, 'data').returns('response')
       @gateway.send(:post_data, @gateway.request_url, 'data', Ideal::Response)
@@ -175,7 +123,8 @@ module IdealTestCases
 
   class XMLBuildingTest < Test::Unit::TestCase
     def setup
-      @gateway = Ideal::Gateway.new
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
+
       @gateway.stubs(:created_at_timestamp).returns('created_at_timestamp')
       @gateway.stubs(:digest_value).returns('digest_value')
       @gateway.stubs(:signature_value).returns('signature_value')
@@ -214,7 +163,8 @@ module IdealTestCases
   class ErroneousInputTest < Test::Unit::TestCase
   
     def setup
-      @gateway = Ideal::Gateway.new
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
+
       @gateway.stubs(:created_at_timestamp).returns('created_at_timestamp')
       @gateway.stubs(:digest_value).returns('digest_value')
       @gateway.stubs(:signature_value).returns('signature_value')
@@ -348,7 +298,7 @@ module IdealTestCases
 
   class DirectoryTest < Test::Unit::TestCase
     def setup
-      @gateway = Ideal::Gateway.new
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
     end
 
     def test_returns_a_list_with_only_one_issuer
@@ -382,7 +332,7 @@ module IdealTestCases
 
   class SetupPurchaseTest < Test::Unit::TestCase
     def setup
-      @gateway = Ideal::Gateway.new
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
 
       @gateway.stubs(:build_transaction_request).with('43.21', VALID_PURCHASE_OPTIONS).returns('the request body')
       @gateway.expects(:ssl_post).with(@gateway.request_url, 'the request body').returns(ACQUIRER_TRANSACTION_RESPONSE)
@@ -406,7 +356,7 @@ module IdealTestCases
 
   class CapturePurchaseTest < Test::Unit::TestCase
     def setup
-      @gateway = Ideal::Gateway.new
+      @gateway, @merchant = IdealTestCases.setup_ideal_gateway!
 
       @gateway.stubs(:build_status_request).
         with(:transaction_id => '0001023456789112').returns('the request body')

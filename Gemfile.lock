@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    ideal (1.0.1)
+    ideal (2.0.0)
       nap
       nokogiri
 

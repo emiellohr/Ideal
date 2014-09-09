@@ -25,58 +25,68 @@ module Ideal
       Ideal::ACQUIRERS
     end
 
+    # class << self
+    #   # Returns the current acquirer used
+    #   attr_reader :acquirer
+
+    #   # Holds the environment in which the run (default is test)
+    #   attr_accessor :environment
+
+    #   # Holds the global iDEAL merchant id. Make sure to use a string with
+    #   # leading zeroes if needed.
+
+    @@merchants = {}
+
     class << self
-      # Returns the current acquirer used
-      attr_reader :acquirer
+      attr_accessor :merchants
+    end    
 
-      # Holds the environment in which the run (default is test)
-      attr_accessor :environment
-
-      # Holds the global iDEAL merchant id. Make sure to use a string with
-      # leading zeroes if needed.
-      attr_accessor :merchant_id
-
-      # Holds the passphrase that should be used for the merchant private_key.
-      attr_accessor :passphrase
-
-      # Holds the test and production urls for your iDeal acquirer.
-      attr_accessor :live_url, :test_url
+    def self.add_merchant(name, merchant)
+      @@merchants[name] = merchant
     end
 
-    # Environment defaults to test
-    self.environment = :test
 
-    # Loads the global merchant private_key from disk.
-    def self.private_key_file=(pkey_file)
-      self.private_key = File.read(pkey_file)
-    end
+    #   # Holds the passphrase that should be used for the merchant private_key.
+    #   attr_accessor :passphrase
 
-    # Instantiates and assings a OpenSSL::PKey::RSA instance with the
-    # provided private key data.
-    def self.private_key=(pkey_data)
-      @private_key = OpenSSL::PKey::RSA.new(pkey_data, passphrase)
-    end
+    #   # Holds the test and production urls for your iDeal acquirer.
+    #   attr_accessor :live_url, :test_url
+    # end
 
-    # Returns the global merchant private_certificate.
-    def self.private_key
-      @private_key
-    end
+    # # Environment defaults to test
+    # self.environment = :test
 
-    # Loads the global merchant private_certificate from disk.
-    def self.private_certificate_file=(certificate_file)
-      self.private_certificate = File.read(certificate_file)
-    end
+    # # Loads the global merchant private_key from disk.
+    # def self.private_key_file=(pkey_file)
+    #   self.private_key = File.read(pkey_file)
+    # end
 
-    # Instantiates and assings a OpenSSL::X509::Certificate instance with the
-    # provided private certificate data.
-    def self.private_certificate=(certificate_data)
-      @private_certificate = OpenSSL::X509::Certificate.new(certificate_data)
-    end
+    # # Instantiates and assings a OpenSSL::PKey::RSA instance with the
+    # # provided private key data.
+    # def self.private_key=(pkey_data)
+    #   @private_key = OpenSSL::PKey::RSA.new(pkey_data, passphrase)
+    # end
 
-    # Returns the global merchant private_certificate.
-    def self.private_certificate
-      @private_certificate
-    end
+    # # Returns the global merchant private_certificate.
+    # def self.private_key
+    #   @private_key
+    # end
+
+    # # Loads the global merchant private_certificate from disk.
+    # def self.private_certificate_file=(certificate_file)
+    #   self.private_certificate = File.read(certificate_file)
+    # end
+
+    # # Instantiates and assings a OpenSSL::X509::Certificate instance with the
+    # # provided private certificate data.
+    # def self.private_certificate=(certificate_data)
+    #   @private_certificate = OpenSSL::X509::Certificate.new(certificate_data)
+    # end
+
+    # # Returns the global merchant private_certificate.
+    # def self.private_certificate
+    #   @private_certificate
+    # end
 
     # Loads the global merchant ideal_certificate from disk.
     def self.ideal_certificate_file=(certificate_file)
@@ -95,41 +105,19 @@ module Ideal
     end
 
     # Returns whether we're in test mode or not.
-    def self.test?
-      environment.to_sym == :test
+    def test?
+      @merchant.environment.to_sym == :test
     end
 
-    # Set the correct acquirer url based on the specific Bank
-    # Currently supported arguments: :ing, :rabobank, :abnamro
-    #
-    # Ideal::Gateway.acquirer = :ing
-    def self.acquirer=(acquirer)
-      @acquirer = acquirer.to_s
-      if self.acquirers.include?(@acquirer)
-        acquirers[@acquirer].each do |attr, value|
-          send("#{attr}=", value)
-        end
-      else
-        raise ArgumentError, "Unknown acquirer `#{acquirer}', please choose one of: #{self.acquirers.keys.join(', ')}"
-      end
-    end
-
-    # Returns the merchant `subID' being used for this Gateway instance.
-    # Defaults to 0.
-    attr_reader :sub_id
-
-    # Initializes a new Gateway instance.
-    #
-    # You can optionally specify <tt>:sub_id</tt>. Defaults to 0.
-    def initialize(options = {})
-      @sub_id = options[:sub_id] || 0
+    def initialize(merchant_name)
+      @merchant = @@merchants[merchant_name]
     end
 
     # Returns the endpoint for the request.
     #
     # Automatically uses test or live URLs based on the configuration.
     def request_url
-      self.class.send("#{self.class.environment}_url")
+      @merchant.request_url
     end
 
     # Sends a directory request to the acquirer and returns an
@@ -220,15 +208,15 @@ module Ideal
         'Content-Type' => 'text/xml'
       }, {
         :tls_verify      => true,
-        :tls_key         => self.class.private_key,
-        :tls_certificate => self.class.private_certificate
+        :tls_key         => @merchant.private_key,
+        :tls_certificate => @merchant.private_certificate
       })
       log('Response', response.body)
       response.body
     end
 
     def post_data(gateway_url, data, response_klass)
-      response_klass.new(ssl_post(gateway_url, data), :test => self.class.test?)
+      response_klass.new(ssl_post(gateway_url, data), :test => self.test?)
     end
 
     # This is the list of charaters that are not supported by iDEAL according
@@ -271,7 +259,7 @@ module Ideal
     # Creates a +signatureValue+ from the xml+.
     def signature_value(digest_value)
       canonical = digest_value.canonicalize(Nokogiri::XML::XML_C14N_EXCLUSIVE_1_0)
-      signature = self.class.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
+      signature = @merchant.private_key.sign(OpenSSL::Digest::SHA256.new, canonical)
       strip_whitespace(Base64.encode64(signature))
     end
     
@@ -284,7 +272,7 @@ module Ideal
     
     # Creates a keyName value for the XML signature
     def fingerprint
-      contents = self.class.private_certificate.to_s
+      contents = @merchant.private_certificate.to_s
       contents = contents.gsub('-----END CERTIFICATE-----', '').gsub('-----BEGIN CERTIFICATE-----', '')
       contents = Base64.decode64(contents)
       Digest::SHA1.hexdigest(contents)
@@ -311,8 +299,8 @@ module Ideal
         xml.AcquirerStatusReq(xmlns: XML_NAMESPACE, version: API_VERSION) do |xml|
           xml.createDateTimestamp created_at_timestamp
           xml.Merchant do |xml|
-            xml.merchantID self.class.merchant_id
-            xml.subID @sub_id
+            xml.merchantID @merchant.merchant_id
+            xml.subID @merchant.sub_id
           end
           xml.Transaction do |xml|
             xml.transactionID options[:transaction_id]
@@ -328,8 +316,8 @@ module Ideal
         xml.DirectoryReq(xmlns: XML_NAMESPACE, version: API_VERSION) do |xml|
           xml.createDateTimestamp created_at_timestamp
           xml.Merchant do |xml|
-            xml.merchantID self.class.merchant_id
-            xml.subID @sub_id
+            xml.merchantID @merchant.merchant_id
+            xml.subID @merchant.sub_id
           end
           sign!(xml)
         end
@@ -353,7 +341,7 @@ module Ideal
             xml.issuerID options[:issuer_id]
           end
           xml.Merchant do |xml|
-            xml.merchantID self.class.merchant_id
+            xml.merchantID @merchant.merchant_id
             xml.subID 0
             xml.merchantReturnURL options[:return_url]
           end

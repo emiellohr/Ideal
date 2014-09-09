@@ -5,6 +5,7 @@ require 'rest'
 
 require 'ideal/acquirers'
 require 'ideal/gateway'
+require 'ideal/merchant'
 require 'ideal/response'
 require 'ideal/version'
 

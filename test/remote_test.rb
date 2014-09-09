@@ -3,11 +3,11 @@
 require File.expand_path('../helper', __FILE__)
 
 class IdealTest < Test::Unit::TestCase
-  def setup
-    setup_ideal_gateway(fixtures('default'))
-    Ideal::Gateway.environment = :test
 
-    @gateway = Ideal::Gateway.new
+  def setup
+    merchant = setup_ideal_gateway(fixtures('default'))
+    Ideal::Gateway.add_merchant('test', merchant)
+    @gateway = Ideal::Gateway.new('test')
 
     @@issuer ||= {id: 'INGBNL2A'}
 
@@ -137,12 +137,19 @@ class IdealTest < Test::Unit::TestCase
   # Setup the gateway by providing a hash of attributes and values.
   def setup_ideal_gateway(fixture)
     fixture = fixture.dup
+
+    if ideal_certificate_file = fixture.delete('ideal_certificate_file')
+      Ideal::Gateway.ideal_certificate_file = ideal_certificate_file
+    end
+
+    merchant = Ideal::Merchant.new
     # The passphrase needs to be set first, otherwise the key won't initialize properly
     if passphrase = fixture.delete('passphrase')
-      Ideal::Gateway.passphrase = passphrase
+      merchant.passphrase = passphrase
     end
-    fixture.each { |key, value| Ideal::Gateway.send("#{key}=", value) }
-    Ideal::Gateway.live_url = nil
+    fixture.each { |key, value| merchant.send("#{key}=", value) }
+    merchant.live_url = nil
+    merchant
   end
 
   # Allows the testing of you to check for negative assertions:
