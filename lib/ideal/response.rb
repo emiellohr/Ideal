@@ -19,6 +19,7 @@ module Ideal
       @response = REXML::Document.new(response_body).root
       @success = !error_occured?
       @test = options[:test]
+      @acquirer = options[:acquirer]
     end
 
     # Returns whether we're running in test mode
@@ -202,7 +203,7 @@ module Ideal
     # Returns whether or not the authenticity of the message could be
     # verified.
     def verified?
-      @verified ||= Ideal::Gateway.ideal_certificate.public_key.
+      @verified ||= Ideal::Gateway.ideal_certificate(@acquirer).public_key.
                       verify(OpenSSL::Digest::SHA256.new, signature, message)
     end
 

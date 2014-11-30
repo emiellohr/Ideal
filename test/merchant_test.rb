@@ -33,7 +33,7 @@ module IdealTestCases
 
     def test_verify_live_urls_for_abnamro
       @merchant.acquirer = :abnamro
-      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDeal', @merchant.live_url
+      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDEALv3', @merchant.live_url
     end
 
     def test_does_not_allow_configuration_of_unknown_acquirers
@@ -45,7 +45,7 @@ module IdealTestCases
     def test_acquirers
       assert_equal 'https://ideal.rabobank.nl/ideal/iDEALv3', Ideal::Gateway.acquirers['rabobank']['live_url']
       assert_equal 'https://ideal.secure-ing.com/ideal/iDEALv3', Ideal::Gateway.acquirers['ing']['live_url']
-      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDeal', Ideal::Gateway.acquirers['abnamro']['live_url']
+      assert_equal 'https://abnamro.ideal-payment.de/ideal/iDEALv3', Ideal::Gateway.acquirers['abnamro']['live_url']
     end
 
     def test_private_certificate_returns_a_loaded_Certificate_instance

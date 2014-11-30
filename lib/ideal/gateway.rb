@@ -25,17 +25,8 @@ module Ideal
       Ideal::ACQUIRERS
     end
 
-    # class << self
-    #   # Returns the current acquirer used
-    #   attr_reader :acquirer
-
-    #   # Holds the environment in which the run (default is test)
-    #   attr_accessor :environment
-
-    #   # Holds the global iDEAL merchant id. Make sure to use a string with
-    #   # leading zeroes if needed.
-
     @@merchants = {}
+    @@ideal_certificate = {}
 
     class << self
       attr_accessor :merchants
@@ -45,63 +36,22 @@ module Ideal
       @@merchants[name] = merchant
     end
 
-
-    #   # Holds the passphrase that should be used for the merchant private_key.
-    #   attr_accessor :passphrase
-
-    #   # Holds the test and production urls for your iDeal acquirer.
-    #   attr_accessor :live_url, :test_url
-    # end
-
-    # # Environment defaults to test
-    # self.environment = :test
-
-    # # Loads the global merchant private_key from disk.
-    # def self.private_key_file=(pkey_file)
-    #   self.private_key = File.read(pkey_file)
-    # end
-
-    # # Instantiates and assings a OpenSSL::PKey::RSA instance with the
-    # # provided private key data.
-    # def self.private_key=(pkey_data)
-    #   @private_key = OpenSSL::PKey::RSA.new(pkey_data, passphrase)
-    # end
-
-    # # Returns the global merchant private_certificate.
-    # def self.private_key
-    #   @private_key
-    # end
-
-    # # Loads the global merchant private_certificate from disk.
-    # def self.private_certificate_file=(certificate_file)
-    #   self.private_certificate = File.read(certificate_file)
-    # end
-
-    # # Instantiates and assings a OpenSSL::X509::Certificate instance with the
-    # # provided private certificate data.
-    # def self.private_certificate=(certificate_data)
-    #   @private_certificate = OpenSSL::X509::Certificate.new(certificate_data)
-    # end
-
-    # # Returns the global merchant private_certificate.
-    # def self.private_certificate
-    #   @private_certificate
-    # end
-
     # Loads the global merchant ideal_certificate from disk.
-    def self.ideal_certificate_file=(certificate_file)
-      self.ideal_certificate = File.read(certificate_file)
+    def self.load_ideal_certificate_file(acquirer, certificate_file)
+      raise ArgumentError, "Unsupported acquirer #{acquirer}." unless self.acquirers.keys.include?(acquirer)
+      self.set_ideal_certificate(acquirer, File.read(certificate_file))
     end
 
     # Instantiates and assings a OpenSSL::X509::Certificate instance with the
     # provided iDEAL certificate data.
-    def self.ideal_certificate=(certificate_data)
-      @ideal_certificate = OpenSSL::X509::Certificate.new(certificate_data)
+    def self.set_ideal_certificate(acquirer, certificate_data)
+      @@ideal_certificate[acquirer] = OpenSSL::X509::Certificate.new(certificate_data)
     end
 
     # Returns the global merchant ideal_certificate.
-    def self.ideal_certificate
-      @ideal_certificate
+    def self.ideal_certificate(acquirer)
+      raise ArgumentError, "Not configured acquirer #{acquirer}." unless @@ideal_certificate.has_key?(acquirer)
+      @@ideal_certificate[acquirer]
     end
 
     # Returns whether we're in test mode or not.
@@ -216,7 +166,7 @@ module Ideal
     end
 
     def post_data(gateway_url, data, response_klass)
-      response_klass.new(ssl_post(gateway_url, data), :test => self.test?)
+      response_klass.new(ssl_post(gateway_url, data), :test => self.test?, :acquirer => @merchant.acquirer)
     end
 
     # This is the list of charaters that are not supported by iDEAL according

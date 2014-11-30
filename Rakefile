@@ -3,7 +3,7 @@ require "bundler/gem_tasks"
 require 'rake/testtask'
 
 desc "runs gateway & merchant in test"
-task test: ["test:gateway", "test:merchant"]
+# task :test ["test:gateway", "test:merchant"]
 
 namespace :test do
   desc "Run the remote tests for iDEAL gateway"

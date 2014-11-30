@@ -139,7 +139,9 @@ class IdealTest < Test::Unit::TestCase
     fixture = fixture.dup
 
     if ideal_certificate_file = fixture.delete('ideal_certificate_file')
-      Ideal::Gateway.ideal_certificate_file = ideal_certificate_file
+      Ideal::Gateway.load_ideal_certificate_file('ing',ideal_certificate_file)
+      Ideal::Gateway.load_ideal_certificate_file('rabobank', ideal_certificate_file)
+      Ideal::Gateway.load_ideal_certificate_file('abnamro', ideal_certificate_file)
     end
 
     merchant = Ideal::Merchant.new
